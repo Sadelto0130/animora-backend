@@ -14,7 +14,9 @@ import {
   getSearchPosts,
   getSearchUSers,
   getComments,
-  updatePostReadCount
+  updatePostReadCount,
+  likePost,
+  dislikePost
 } from "../controllers/posts.controllers.js";
 import { isAuth } from "../middlewares/auth.middlewares.js";
 
@@ -48,6 +50,10 @@ router.post("/post", isAuth, createPost);
 router.get("/s3url", isAuth, getUploadURL);
 
 router.put("/post/:id", isAuth, updatePost);
+
+router.post("/like_post", isAuth, likePost)
+
+router.delete("/dislike_post", isAuth, dislikePost)
 
 // rutas no usadas
 

@@ -1,11 +1,11 @@
 import { json } from "express";
 import { pool } from "../db.js";
 import { generateUploadURL } from "../libs/aws.js";
- 
+
 export const getAllPosts = async (req, res) => {
   try {
     const { offset = 0, limit = 10 } = req.query;
- 
+
     const result = await pool.query(
       `SELECT 
         p.id AS post_id,
@@ -65,9 +65,7 @@ export const getAllPosts = async (req, res) => {
     );
 
     if (result.rows.length === 0) {
-      return res
-        .status(200)
-        .json([]);
+      return res.status(200).json([]);
     }
 
     return res.status(200).json(result.rows);
@@ -78,11 +76,11 @@ export const getAllPosts = async (req, res) => {
 };
 
 export const getPostByTag = async (req, res) => {
-  const {tag} = req.query
+  const { tag } = req.query;
 
   try {
     const result = await pool.query(
-    `SELECT 
+      `SELECT 
       p.id AS post_id,
       p.title,
       p.content,
@@ -138,13 +136,12 @@ export const getPostByTag = async (req, res) => {
         AND t2.tag = $1
     )
     GROUP BY p.id, u.id
-    ORDER BY p.created_at DESC`, [tag]
-    )
+    ORDER BY p.created_at DESC`,
+      [tag]
+    );
 
     if (result.rows.length === 0) {
-      return res
-        .status(200)
-        .json([]);
+      return res.status(200).json([]);
     }
     return res.status(200).json(result.rows);
   } catch (error) {
@@ -188,7 +185,7 @@ export const createPost = async (req, res) => {
         slug,
         req.userId,
         draft,
-        description
+        description,
       ]
     );
 
@@ -273,9 +270,7 @@ export const getTrendingPosts = async (req, res) => {
     );
 
     if (result.rows.length === 0) {
-      return res
-        .status(200)
-        .json([]);
+      return res.status(200).json([]);
     }
 
     return res.status(200).json(result.rows);
@@ -295,15 +290,13 @@ export const usedTags = async (req, res) => {
       JOIN tags t ON pt.tag_id = t.id 
       GROUP BY t.id, t.tag
       ORDER BY veces_usado DESC
-    `)
+    `);
 
     if (result.rows.length === 0) {
-      return res
-        .status(200)
-        .json([]);
+      return res.status(200).json([]);
     }
 
-    return res.status(200).json(result.rows)
+    return res.status(200).json(result.rows);
   } catch (error) {
     console.error("Error al contar los tags:", error);
     res.status(500).json({ message: error.message });
@@ -325,7 +318,7 @@ export const getSearchPosts = async (req, res) => {
 
   try {
     const result = await pool.query(
-    `SELECT 
+      `SELECT 
       p.id AS post_id,
       p.title,
       p.content,
@@ -384,20 +377,18 @@ export const getSearchPosts = async (req, res) => {
     )
     GROUP BY p.id, u.id
     ORDER BY p.created_at DESC
-    LIMIT $2 OFFSET $3;`, 
-    [search, limit, offset]
-    )
+    LIMIT $2 OFFSET $3;`,
+      [search, limit, offset]
+    );
     if (result.rows.length === 0) {
-      return res
-        .status(200)
-        .json([]);
+      return res.status(200).json([]);
     }
     return res.status(200).json(result.rows);
   } catch (error) {
     console.error("Error al buscar las publicaciones:", error);
     res.status(500).json({ message: error.message });
   }
-}
+};
 
 export const getSearchUSers = async (req, res) => {
   const { search, offset = 0, limit = 10 } = req.query;
@@ -422,24 +413,22 @@ export const getSearchUSers = async (req, res) => {
     );
 
     if (result.rows.length === 0) {
-      return res
-        .status(200)
-        .json([]);
+      return res.status(200).json([]);
     }
     return res.status(200).json(result.rows);
   } catch (error) {
     console.error("Error al buscar usuarios:", error);
     res.status(500).json({ message: error.message });
   }
-}
+};
 
 export const getPostByIdUser = async (req, res, next) => {
-  const {id_user} = req.params
-  const { offset = 0, limit = 10 } = req.query
+  const { id_user } = req.params;
+  const { offset = 0, limit = 10 } = req.query;
 
   try {
     const result = await pool.query(
-    `SELECT 
+      `SELECT 
       p.id AS post_id,
       p.title,
       p.content,
@@ -452,6 +441,7 @@ export const getPostByIdUser = async (req, res, next) => {
       p.created_at,
       p.updated_at,
       p.read_count,
+      p.draft,
 
       -- Tags como array
       COALESCE(json_agg(DISTINCT t.tag) FILTER (WHERE t.id IS NOT NULL), '[]') AS tags,
@@ -477,13 +467,11 @@ export const getPostByIdUser = async (req, res, next) => {
     GROUP BY p.id
     ORDER BY p.created_at DESC
     LIMIT $2 OFFSET $3;`,
-    [id_user, limit, offset]
-    ); 
-    
+      [id_user, limit, offset]
+    );
+
     if (result.rows.length === 0) {
-      return res
-        .status(200)
-        .json([]);
+      return res.status(200).json([]);
     }
     return res.status(200).json(result.rows);
   } catch (error) {
@@ -533,7 +521,14 @@ export const getPostById = async (req, res, next) => {
         )) FILTER (WHERE bi.id IS NOT NULL), '[]') AS blog_images,
 
         -- Cantidad de likes
-        COUNT(DISTINCT l.id) AS total_likes
+        COUNT(DISTINCT l.id) AS total_likes,
+
+        -- Usuarios que dieron like
+        COALESCE(json_agg(DISTINCT jsonb_build_object(
+          'id', lu.id,
+          'name', lu.name,
+          'last_name', lu.last_name
+        )) FILTER (WHERE lu.id IS NOT NULL), '[]') AS liked_by
 
       FROM posts p
       JOIN users u ON p.user_id = u.id
@@ -561,7 +556,7 @@ export const getPostById = async (req, res, next) => {
 export const getComments = async (req, res) => {
   try {
     const { postId } = req.params;
-    const { page = 0 } = req.query; 
+    const { page = 0 } = req.query;
 
     const offset = page * 10;
 
@@ -591,7 +586,8 @@ export const getComments = async (req, res) => {
           AND c.parent_comment_id IS NULL
         ORDER BY c.created_at ASC
         LIMIT 10 OFFSET $2
-      ) comments_tree;`, [postId, offset]
+      ) comments_tree;`,
+      [postId, offset]
     );
 
     if (result.rows.length === 0) {
@@ -606,99 +602,201 @@ export const getComments = async (req, res) => {
 };
 
 export const updatePostReadCount = async (req, res) => {
-  const {post_id, user_id, user_uuid} = req.body
- 
-  if(!post_id || (!user_id && !user_uuid)) {
-    return res.status(400).json({message: "Faltan datos necesarios"})
+  const { post_id, user_id, user_uuid } = req.body;
+
+  if (!post_id || (!user_id && !user_uuid)) {
+    return res.status(400).json({ message: "Faltan datos necesarios" });
   }
 
   try {
-
     const existRead = await pool.query(
       `SELECT * FROM post_reads 
       WHERE post_id = $1 
       AND (user_id = $2 OR user_uuid = $3)`,
       [post_id, user_id, user_uuid]
-    )
+    );
 
     if (existRead.rowCount > 0) {
-      return res.status(200).json({ message: "El usuario ya ha leído este post" });
+      return res
+        .status(200)
+        .json({ message: "El usuario ya ha leído este post" });
     }
-    
+
     const result = await pool.query(
       `INSERT INTO post_reads (post_id, user_id, user_uuid) 
       VALUES ($1, $2, $3)
       ON CONFLICT (post_id, user_id) DO NOTHING
-      RETURNING *`, 
+      RETURNING *`,
       [post_id, user_id, user_uuid]
-    )
+    );
     if (result.rowCount === 0) {
-      return res.status(200).json({ message: "El usuario ya ha leído este post" });
+      return res
+        .status(200)
+        .json({ message: "El usuario ya ha leído este post" });
     }
   } catch (error) {
     console.error("Error al actualizar el contador de lecturas:", error);
-    res.status(500).json({ message: "Error al actualizar el contador de lecturas" });
+    res
+      .status(500)
+      .json({ message: "Error al actualizar el contador de lecturas" });
   }
-}
+};
 
 export const updatePost = async (req, res) => {
-
   try {
-    
     const { id } = req.params;
-    const postUpdate = req.body
-  
-    console.log("Post de back", postUpdate)
-    return res.status(200).json(postUpdate)
-  } catch (error) {
-    console.log(error)
-  }
-  /* try {
-    const { title, content, location } = req.body;
-    let imageURLNew = null;
+    const postUpdate = req.body;
+    const {
+      title,
+      banner,
+      content,
+      country,
+      state,
+      city,
+      draft,
+      tags,
+      description,
+    } = req.body;
 
-    const postActual = await pool.query("SELECT * FROM posts WHERE id = $1", [
-      id,
-    ]);
+    await pool.query("BEGIN"); // pausa todas las operaciones hasta que se confirme el envio
 
-    if (postActual.rowCount === 0) {
-      return res.status(404).json({ message: "Publicación no encontrada" });
-    }
-
-    imageURLNew = postActual.rows[0].banner;
-
-    // Borra la imagen anterior
-
-    // Sube la nueva imagen
-
-    const result = await pool.query(
-      `UPDATE posts SET
-      title = $1,
-      content = $2,
-      location = $3,
-      banner = $4
-    WHERE id = $5
-    RETURNING *`,
+    const postResult = await pool.query(
+      `UPDATE posts SET 
+        title = $1, 
+        content = $2, 
+        banner = $3, 
+        country = $4, 
+        state = $5, 
+        city = $6, 
+        draft = $7, 
+        description = $8
+      WHERE id = $9 
+      RETURNING *`,
       [
-        title ?? postActual.rows[0].title,
-        JSON.stringify(content) ?? postActual.rows[0].content,
-        location ?? postActual.rows[0].location,
-        imageURLNew,
+        title,
+        JSON.stringify(content),
+        banner,
+        country,
+        state,
+        city,
+        draft,
+        description,
         id,
       ]
     );
 
-    res.status(200).json({
-      message: "Publicación actualizada con éxito",
-      post: result.rows[0],
+    const tagsMinuscula = tags.map((tag) => tag.trim().toLowerCase());
+
+    const tagsDelPostRes = await pool.query(
+      `SELECT t.id, t.tag
+        FROM post_tags pt
+        JOIN tags t ON pt.tag_id = t.id
+        WHERE pt.post_id = $1`,
+      [id]
+    );
+
+    const tagsDelPost = tagsDelPostRes.rows.map((row) => row.tag);
+
+    // Tags que ya no estan en el post
+    const eliminaTags = tagsDelPost.filter(
+      (tag)=> !tagsMinuscula.includes(tag)
+    )
+
+    for (let tag of eliminaTags) {
+      const tagResult = await pool.query(`SELECT id FROM tags WHERE tag = $1`, [tag])
+      if ( tagResult.rows.length > 0) {
+        const tagId = tagResult.rows[0].id;
+  
+        await pool.query(`DELETE FROM post_tags WHERE post_id = $1 AND tag_id = $2`, [id, tagId])
+      }
+    }
+
+    for (let tag of tagsMinuscula) {
+      // insertar los tag en la tabla tag, si existen no pasa nada
+      const tagResult = await pool.query(
+        `INSERT INTO tags (tag)
+        VALUES ($1)
+        ON CONFLICT (tag) DO NOTHING
+        RETURNING *`,
+        [tag]
+      )
+      let tagId
+      if (tagResult.rows.length > 0) {
+        // si no existe en la tabla y lo crea, guarda id
+        tagId = tagResult.rows[0].id
+      } else {
+        // si existe se consulta el id
+        const existeTag = await pool.query(`SELECT id FROM tags WHERE tag = $1`, [tag])
+        tagId = existeTag.rows[0].id
+      }
+      
+      // insertar los post_tags en la tabla tag, si existen no pasa nada
+      await pool.query(`
+        INSERT INTO post_tags (post_id, tag_id)
+        VALUES ($1, $2)
+        ON CONFLICT (post_id, tag_id) DO NOTHING`,
+      [id, tagId])
+    }
+
+    await pool.query("COMMIT"); // confirma las operaciones para enviar
+
+    return res.status(201).json({
+      message: "Post actualizado con exito",
     });
   } catch (error) {
-    console.error("Error al actualizar la publicación:", error);
-    res.status(500).json({ message: error.message });
-  } */
+    await pool.query("ROLLBACK");
+    console.error("Error al actualizar el post:", error);
+    res.status(500).json({ message: "Error al actualizar el post" });
+  }
 };
 
+export const likePost = async (req, res) =>  {
+  const {post_id, user_id} = req.body
 
+  try {
+      await pool.query(`
+      INSERT INTO likes (post_id, user_id)
+      VALUES ($1, $2)
+      ON CONFLICT (post_id, user_id) DO NOTHING
+      RETURNING *`,
+    [post_id, user_id])
+
+    const result = await pool.query(`
+      SELECT id, likes_count
+      FROM posts 
+      WHERE id = $1`, 
+      [post_id])
+
+    return res.status(201).json(result.rows[0])
+  } catch (error) {
+    await pool.query("ROLLBACK");
+    console.error("Error al actualizar el post:", error);
+    res.status(500).json({ message: "Error al actualizar el post" });
+  }
+}
+
+export const dislikePost = async (req, res) => {
+  const {post_id, user_id} = req.body
+
+  try {
+    await pool.query(`
+      DELETE FROM likes
+      WHERE post_id = $1 
+      AND user_id = $2`, [post_id, user_id])
+
+    const result = await pool.query(`
+      SELECT id, likes_count
+      FROM posts 
+      WHERE id = $1`, 
+      [post_id])
+
+    return res.status(201).json(result.rows[0])
+  } catch (error) {
+    await pool.query("ROLLBACK");
+    console.error("Error al actualizar el post:", error);
+    res.status(500).json({ message: "Error al actualizar el post" });
+  }
+}
 
 
 export const deletePost = async (req, res) => {
