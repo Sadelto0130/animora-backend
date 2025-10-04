@@ -523,6 +523,9 @@ export const getPostById = async (req, res, next) => {
         -- Cantidad de likes
         COUNT(DISTINCT l.id) AS total_likes,
 
+        -- Cantidad de comentarios
+        COUNT(DISTINCT c.id) AS total_comments,
+
         -- Usuarios que dieron like
         COALESCE(json_agg(DISTINCT jsonb_build_object(
           'id', lu.id,
@@ -537,6 +540,7 @@ export const getPostById = async (req, res, next) => {
       LEFT JOIN blog_images bi ON p.id = bi.blog_id
       LEFT JOIN likes l ON p.id = l.post_id
       LEFT JOIN users lu ON l.user_id = lu.id
+      LEFT JOIN comments c ON p.id = c.post_id
       WHERE p.slug = $1
       GROUP BY p.id, u.id`,
       [post_slug]
@@ -550,54 +554,6 @@ export const getPostById = async (req, res, next) => {
   } catch (error) {
     console.error("Error al obtener la publicación:", error);
     res.status(500).json({ message: error.message });
-  }
-};
-
-export const getComments = async (req, res) => {
-  try {
-    const { postId } = req.params;
-    const { page = 0 } = req.query;
-
-    const offset = page * 10;
-
-    const result = await pool.query(
-      `SELECT json_agg(comments_tree) AS comentarios
-      FROM (
-        SELECT 
-          c.id,
-          c.content,
-          c.user_id,
-          c.created_at,
-          (
-            SELECT COALESCE(json_agg(replies), '[]')
-            FROM (
-              SELECT 
-                r.id,
-                r.content,
-                r.user_id,
-                r.created_at
-              FROM comments r
-              WHERE r.parent_comment_id = c.id
-              ORDER BY r.created_at ASC
-            ) replies
-          ) AS respuestas
-        FROM comments c
-        WHERE c.post_id = $1 
-          AND c.parent_comment_id IS NULL
-        ORDER BY c.created_at ASC
-        LIMIT 10 OFFSET $2
-      ) comments_tree;`,
-      [postId, offset]
-    );
-
-    if (result.rows.length === 0) {
-      return res.status(200).json([]);
-    }
-
-    res.json(result.rows || []);
-  } catch (error) {
-    console.error("Error al obtener comentarios:", error);
-    res.status(500).json({ message: "Error al obtener comentarios" });
   }
 };
 
@@ -769,7 +725,6 @@ export const likePost = async (req, res) =>  {
 
     return res.status(201).json(result.rows[0])
   } catch (error) {
-    await pool.query("ROLLBACK");
     console.error("Error al actualizar el post:", error);
     res.status(500).json({ message: "Error al actualizar el post" });
   }
@@ -792,7 +747,6 @@ export const dislikePost = async (req, res) => {
 
     return res.status(201).json(result.rows[0])
   } catch (error) {
-    await pool.query("ROLLBACK");
     console.error("Error al actualizar el post:", error);
     res.status(500).json({ message: "Error al actualizar el post" });
   }

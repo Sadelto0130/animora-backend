@@ -28,6 +28,7 @@
     "nanoid": "^5.1.5",
     "path": "^0.12.7",
     "pg": "^8.16.3",
+    "socket.io": "^4.8.1",
     "zod": "^3.25.67"
   },
   "devDependencies": {

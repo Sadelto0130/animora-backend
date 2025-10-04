@@ -38,8 +38,10 @@ CREATE TABLE comments(
   deleted_at TIMESTAMP NULL,
   post_id INT NOT NULL,
   user_id INT NOT NULL,
+  parent_comment_id INTEGER,
   FOREIGN KEY (post_id) REFERENCES posts(id) ON DELETE CASCADE,
-  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  FOREIGN KEY (parent_comment_id) REFERENCES comments(id) ON DELETE CASCADE,
 );
 
 CREATE TABLE likes (
@@ -89,33 +91,38 @@ CREATE TABLE post_reads (
     CONSTRAINT unique_read UNIQUE(post_id, user_id, user_uuid)
 );
 
+CREATE OR REPLACE TRIGGER set_updated_at_comments
+    BEFORE UPDATE 
+    ON public.comments
+    FOR EACH ROW
+    EXECUTE FUNCTION public.update_updated_at_column();
 
 -- Función que actualiza updated_at
 CREATE OR REPLACE FUNCTION update_updated_at_column()
-RETURNS TRIGGER AS $$
-BEGIN
-  NEW.updated_at = NOW();
-  RETURN NEW;
-END;
-$$ language 'plpgsql';
+  RETURNS TRIGGER AS $$
+  BEGIN
+    NEW.updated_at = NOW();
+    RETURN NEW;
+  END;
+  $$ language 'plpgsql';
 
 -- Triggers para updated_at en posts
 CREATE TRIGGER set_updated_at_posts
-BEFORE UPDATE ON posts
-FOR EACH ROW
-EXECUTE PROCEDURE update_updated_at_column();
+  BEFORE UPDATE ON posts
+  FOR EACH ROW
+  EXECUTE PROCEDURE update_updated_at_column();
 
 -- Triggers para updated_at en users
 CREATE TRIGGER set_updated_at_users
-BEFORE UPDATE ON users
-FOR EACH ROW
-EXECUTE PROCEDURE update_updated_at_column();
+  BEFORE UPDATE ON users
+  FOR EACH ROW
+  EXECUTE PROCEDURE update_updated_at_column();
 
 -- Triggers para updated_at en comments
 CREATE TRIGGER set_updated_at_comments
-BEFORE UPDATE ON comments
-FOR EACH ROW
-EXECUTE PROCEDURE update_updated_at_column();
+  BEFORE UPDATE ON comments
+  FOR EACH ROW
+  EXECUTE PROCEDURE update_updated_at_column();
 
 -- Triggers para actualizar automaticamente la colummna likes_count desde la tabla likes
 CREATE OR REPLACE FUNCTION update_likes_count()
@@ -131,14 +138,14 @@ END;
 $$ LANGUAGE plpgsql;
 
 CREATE TRIGGER trg_likes_count
-AFTER INSERT OR DELETE ON likes
-FOR EACH ROW
-EXECUTE FUNCTION update_likes_count();
+  AFTER INSERT OR DELETE ON likes
+  FOR EACH ROW
+  EXECUTE FUNCTION update_likes_count();
 
 -- Trgiger para actualizar automaticamente la colummna comments_count desde la tabla comments
 CREATE OR REPLACE FUNCTION public.update_post_read_count()
-RETURNS TRIGGER AS $$
-BEGIN
+  RETURNS TRIGGER AS $$
+  BEGIN
   -- Si fue un INSERT → aumentar el contador
   IF TG_OP = 'INSERT' THEN
     UPDATE posts

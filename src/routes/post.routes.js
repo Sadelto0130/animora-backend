@@ -13,7 +13,6 @@ import {
   getPostByTag,
   getSearchPosts,
   getSearchUSers,
-  getComments,
   updatePostReadCount,
   likePost,
   dislikePost
@@ -38,8 +37,6 @@ router.get("/search_users", getSearchUSers)
 router.get("/post_user/:id_user", getPostByIdUser); 
 
 router.get("/post/:post_slug", getPostById);
-
-router.get("/comments/:post_id", getComments)
 
 router.post("/read_count", updatePostReadCount)
 
