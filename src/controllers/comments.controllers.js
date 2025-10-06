@@ -1,3 +1,4 @@
+import { json } from "zod/v4";
 import { pool } from "../db.js";
 import {buildCommentTree} from "../libs/buildCommentTree.js"
 
@@ -105,7 +106,7 @@ export const createComments = async (req, res) => {
     // emitir el evento en tiempo real
     const io = req.app.get("io")
     io.emit("update-comments", newComment)
-    res
+    return res
       .status(201)
       .json({
         message: `Comentario agregado al post`,
@@ -118,27 +119,42 @@ export const createComments = async (req, res) => {
 };
 
 export const deleteComments = async (req, res) => {
-  const { id } = req.params;
-
+  const { comment_id } = req.params;
+  const user_id = req.userId
   try {
     const commentExists = await pool.query(
-      "SELECT * FROM comments WHERE id = $1 AND is_active = TRUE",
-      [id]
+      "SELECT * FROM comments WHERE id = $1 AND is_active = true",
+      [comment_id]
     );
+
     if (commentExists.rows.length === 0) {
-      return res.status(404).send("Comentario no encontrado");
-    }
-    if (commentExists.rows[0].user_id !== req.userId) {
-      return res
-        .status(403)
-        .send("No tienes permiso para eliminar este comentario");
+      console.log("Comentario no encontrado")
+      return res.status(404).json({message:"Comentario no encontrado"});
     }
 
     // Actualizar el estado del comentario a inactivo
-    await pool.query("UPDATE comments SET is_active = FALSE WHERE id = $1", [
-      id,
-    ]);
-    res.send(`Comentario con ID ${id} eliminado`);
+    const { rows } = await pool.query(`
+      WITH RECURSIVE comment_tree AS (
+        SELECT id FROM comments WHERE id = $1
+        UNION ALL
+        SELECT c.id
+        FROM comments c
+        INNER JOIN comment_tree ct ON c.parent_comment_id = ct.id
+      )
+      UPDATE comments
+      SET is_active = false, deleted_at = NOW(), deleted_by = $2
+      WHERE id IN (SELECT id FROM comment_tree)
+      RETURNING id`, 
+      [comment_id, user_id]);
+    
+    const deletedIds = rows.map(r => r.id);
+    const io = req.app.get("io")
+    io.to(`post_${commentExists.rows[0].post_id}`).emit("delete-comment", {deletedIds}) 
+
+    return res.status(201).json({
+      message: "Comentario eliminado",
+      deletedIds
+    });
   } catch (error) {
     res.status(500).json({ message: error.message });
     console.error("Error al eliminar el comentario:", error.message);

@@ -13,6 +13,6 @@ router.get("/comments/:postId", getComments);
 
 router.post('/comments', isAuth, createComments);
 
-router.put('/comments_delete/:id', isAuth, deleteComments);
+router.put('/comments_delete/:comment_id', isAuth, deleteComments);
 
 export default router;
