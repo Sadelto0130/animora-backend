@@ -163,3 +163,28 @@ CREATE OR REPLACE FUNCTION public.update_post_read_count()
 END;
 $$ LANGUAGE plpgsql;
 
+-- aplica un borrado logico en cascada
+CREATE OR REPLACE FUNCTION delete_comment_logical() RETURNS trigger AS $$
+BEGIN
+    WITH RECURSIVE cte AS (
+        SELECT id
+        FROM comments
+        WHERE id = OLD.id
+      UNION ALL
+        SELECT c.id
+        FROM comments c
+        INNER JOIN cte ON c.parent_comment_id = cte.id
+    )
+    UPDATE comments
+    SET is_active = false, deleted_at = now()
+    WHERE id IN (SELECT id FROM cte);
+
+    RETURN OLD;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trigger_delete_comment_logical
+BEFORE DELETE ON comments
+FOR EACH ROW
+EXECUTE FUNCTION delete_comment_logical();
+
