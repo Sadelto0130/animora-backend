@@ -695,7 +695,6 @@ export const updatePost = async (req, res) => {
     }
 
     await pool.query("COMMIT"); // confirma las operaciones para enviar
-
     return res.status(201).json({
       message: "Post actualizado con exito",
     });
@@ -723,6 +722,8 @@ export const likePost = async (req, res) =>  {
       WHERE id = $1`, 
       [post_id])
 
+    const io = req.app.get("io")
+    io.emit("like-post", result.rows[0])
     return res.status(201).json(result.rows[0])
   } catch (error) {
     console.error("Error al actualizar el post:", error);
@@ -744,6 +745,9 @@ export const dislikePost = async (req, res) => {
       FROM posts 
       WHERE id = $1`, 
       [post_id])
+
+    const io = req.app.get("io")
+    io.emit("dislike-post", result.rows[0])
 
     return res.status(201).json(result.rows[0])
   } catch (error) {
