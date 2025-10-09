@@ -9,11 +9,12 @@ import {
   me, 
   refreshToken, 
   googleLoginUser,
-  googleRegisterUser
+  googleRegisterUser,
+  changePassword
 } from "../controllers/auth.controllers.js";
 import { isAuth } from "../middlewares/auth.middlewares.js";
 
-const router = Router();
+const router = Router(); 
 
 router.post("/login", login);
 
@@ -29,8 +30,11 @@ router.post("/deleteUSer", isAuth, deleteUser);
 
 router.get("/profile/:user_name", isAuth, getProfile);
 
+router.put("/pass_change", isAuth, changePassword)
+
 router.get('/me', isAuth, me);
 
 router.get("/refresh_token", refreshToken)
+
 
 export default router; 

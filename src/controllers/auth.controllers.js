@@ -63,6 +63,9 @@ export const login = async (req, res) => {
 
     const userData = { ...result.rows[0] };
     delete userData.password;
+    if (userData.avatar_url) {
+      userData.avatar_url = userData.avatar_url.replace(/;/g, "");
+    }
     return res.json(userData);
   } catch (error) {
     console.log(error);
@@ -163,6 +166,10 @@ export const getProfile = async (req, res) => {
 
     const userData = { ...result.rows[0] };
     delete userData.password;
+
+    if (userData.avatar_url) {
+      userData.avatar_url = userData.avatar_url.replace(/;/g, "");
+    }
     return res.json(userData);
 
   } catch (error) {
@@ -212,6 +219,43 @@ export const deleteUser = async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 };
+
+export const changePassword = async(req, res) => {
+  const { newPassword, currentPassword, id } = req.body
+  try {
+    const userActive = await pool.query("SELECT * FROM users WHERE id = $1", [
+      id,
+    ]);
+
+    if (userActive.rowCount === 0) {
+      return res.status(404).json({ message: "Usuario no existe" });
+    }
+
+    if (userActive.rows[0].is_active === false) {
+      return res.status(404).json({ message: "Usuario eliminado" });
+    }
+
+    const validatePassword = await pool.query("SELECT password FROM users WHERE id = $1", [id])
+
+    const comparePassword = await bcrypt.compare(currentPassword, validatePassword.rows[0].password)
+    if(!comparePassword) { return res.status(404).json({message: "La contraseña actual no es correcta"})}
+
+    const compareNewPassword = await bcrypt.compare(newPassword, validatePassword.rows[0].password)
+    if(compareNewPassword) { return res.status(404).json({message: "La contraseña nueva no puede ser igual a la anterior"})}
+
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+    const result = await pool.query(
+      "UPDATE users SET password = $1, updated_at = NOW() WHERE id = $2 RETURNING *",
+      [hashedPassword, id]
+    );
+
+    res.status(200).json({message: "Contraseña cambiada"})
+  } catch (error) {
+    console.error("Error al cambiar la contraseña:", error);
+    res.status(500).json({ message: error.message });
+  }
+}
 
 export const googleRegisterUser = async (req, res) => {
   const google_token = req.body.google_token;
@@ -332,6 +376,9 @@ export const googleLoginUser = async (req, res) => {
 
     const userData = { ...result.rows[0] };
     delete userData.password;
+    if (userData.avatar_url) {
+      userData.avatar_url = userData.avatar_url.replace(/;/g, "");
+    }
     return res.json(userData);
   } catch (error) {
     console.log(error);
