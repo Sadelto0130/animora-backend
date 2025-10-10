@@ -91,6 +91,18 @@ CREATE TABLE post_reads (
     CONSTRAINT unique_read UNIQUE(post_id, user_id, user_uuid)
 );
 
+CREATE TABLE social_links (
+    id SERIAL PRIMARY KEY,
+    user_id INT NOT NULL,
+    platform VARCHAR(50) NOT NULL, -- Ej: 'Twitter', 'Instagram', 'LinkedIn'
+    url TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW(),
+
+    CONSTRAINT unique_user_platform UNIQUE (user_id, platform),
+    CONSTRAINT fk_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
 CREATE OR REPLACE TRIGGER set_updated_at_comments
     BEFORE UPDATE 
     ON public.comments

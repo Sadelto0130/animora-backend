@@ -63,9 +63,8 @@ export const login = async (req, res) => {
 
     const userData = { ...result.rows[0] };
     delete userData.password;
-    if (userData.avatar_url) {
-      userData.avatar_url = userData.avatar_url.replace(/;/g, "");
-    }
+    userData.avatar_url = userData.avatar_url.replace(/;/g, "");
+    
     return res.json(userData);
   } catch (error) {
     console.log(error);
@@ -107,6 +106,15 @@ export const register = async (req, res, next) => {
       "INSERT INTO users (name, last_name, email, user_name, password, avatar_url) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *",
       [name, last_name, email, user_name, hashedPassword, avatar_url]
     );
+
+    await client.query(`
+      INSERT INTO social_links (user_id, platform, url) 
+      values 
+        ($1, 'facebook', ''),
+        ($1, 'instagram', ''),
+        ($1, 'youtube', ''),
+        ($1, 'website', '')
+      `, [result.rows[0].id])
 
     const tokenData = { idUser: result.rows[0].id };
 
@@ -158,7 +166,37 @@ export const logout = (req, res) => {
 export const getProfile = async (req, res) => {
   const {user_name} = req.params
   try {
-    const result = await pool.query("SELECT * FROM users WHERE user_name = $1", [user_name]);
+    const result = await pool.query(`
+      SELECT 
+        u.id,
+        u.name,
+        u.last_name,
+        u.email,
+        u.user_name,
+        u.avatar_url,
+        u.created_at,
+        u.deleted_at,
+        u.google_auth,
+        u.bio,
+        u.type_user,
+        COALESCE(
+            json_agg(
+                json_build_object(
+                    'id', s.id,
+                    'user_id', s.user_id,
+                    'platform_name', s.platform,
+                    'url', s.url
+                )
+            ) FILTER (WHERE s.id IS NOT NULL),
+            '[]'
+        ) AS social_links
+    FROM users u
+    LEFT JOIN social_links s ON u.id = s.user_id
+    WHERE u.user_name = $1 
+    AND u.is_active = true
+    GROUP BY u.id, u.name, u.last_name, u.email, u.user_name, 
+    u.avatar_url, u.created_at, u.deleted_at, u.google_auth, u.bio, u.type_user`, 
+    [user_name]);
 
     if (result.rows.length === 0) {
       return res.status(404).json({ message: "Usuario no encontrado" });
@@ -257,6 +295,34 @@ export const changePassword = async(req, res) => {
   }
 }
 
+export const updateImgProfile = async(req, res) => {
+  const { imgUrl, id_user} = req.body
+
+  try {
+    const userActive = await pool.query("SELECT * FROM users WHERE id = $1", [id_user]);
+
+    if (userActive.rowCount === 0) {
+      return res.status(404).json({ message: "Usuario no existe" });
+    }
+
+    if (userActive.rows[0].is_active === false) {
+      return res.status(404).json({ message: "Usuario eliminado" });
+    }
+
+    const result = await pool.query(
+      "UPDATE users SET avatar_url = $1, updated_at = NOW() WHERE id = $2 RETURNING *",
+      [imgUrl, id_user]
+    );
+    const io = req.app.get("io")
+    io.emit("update-img-profile", result.rows[0])
+    return res.status(200).json(result.rows[0])
+
+  } catch (error) {
+    console.error("Error al cambiar la contraseña:", error);
+    res.status(500).json({ message: error.message });
+  }
+}
+
 export const googleRegisterUser = async (req, res) => {
   const google_token = req.body.google_token;
 
@@ -293,6 +359,15 @@ export const googleRegisterUser = async (req, res) => {
       "INSERT INTO users (name, last_name, email, user_name, password, avatar_url, google_auth) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *",
       [name, last_name, email, user_name, hashedPassword, avatar_url, true]
     );
+
+    await client.query(`
+      INSERT INTO social_links (user_id, platform, url) 
+      values 
+        ($1, 'facebook', ''),
+        ($1, 'instagram', ''),
+        ($1, 'youtube', ''),
+        ($1, 'website', '')
+      `, [result.rows[0].id])
 
     const tokenData = { idUser: result.rows[0].id };
 

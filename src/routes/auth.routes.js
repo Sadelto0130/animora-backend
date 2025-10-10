@@ -10,7 +10,8 @@ import {
   refreshToken, 
   googleLoginUser,
   googleRegisterUser,
-  changePassword
+  changePassword,
+  updateImgProfile
 } from "../controllers/auth.controllers.js";
 import { isAuth } from "../middlewares/auth.middlewares.js";
 
@@ -31,6 +32,8 @@ router.post("/deleteUSer", isAuth, deleteUser);
 router.get("/profile/:user_name", isAuth, getProfile);
 
 router.put("/pass_change", isAuth, changePassword)
+
+router.put("/profile_img", isAuth, updateImgProfile)
 
 router.get('/me', isAuth, me);
 
